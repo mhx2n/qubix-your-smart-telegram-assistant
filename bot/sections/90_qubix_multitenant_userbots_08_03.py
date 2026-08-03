@@ -18,8 +18,8 @@
 #          (token kept in memory only, never written to the DB).
 #        • On expiry the user gets a professional card with their user id and
 #          the owner contact to request permission.
-#   5. On-demand lifecycle: a user bot runs only while the user is working.
-#      Idle bots are stopped automatically and wake instantly on command.
+#   5. On-demand lifecycle: idle bots perform no work and resume silently on
+#      the next update; users never need a separate wake command.
 # ══════════════════════════════════════════════════════════════════════════════
 
 import contextvars as _qx_cv
@@ -386,7 +386,7 @@ def _qx_access_card(uid: int, name: str, st: Dict[str, Any], username: str = "")
     if not st.get("ok"):
         lines.append(f"Access নিতে owner-কে জানান: {h(QX_OWNER_CONTACT)}")
     else:
-        lines.append("Command: <code>/mybot on</code> · <code>/mybot off</code> · <code>/removebot</code>")
+        lines.append("আপনার bot idle অবস্থায়ও পরের command স্বয়ংক্রিয়ভাবে গ্রহণ করবে।")
     return "\n".join(lines)
 
 
@@ -611,7 +611,7 @@ QX_USER_HELP = (
     "• 🧵 Forum topic তৈরি করে সেখানে reply দিয়ে quiz পাঠানো\n\n"
     "<b>Commands:</b>\n"
     "<code>/addbot &lt;token&gt;</code> — বট যুক্ত করুন\n"
-    "<code>/mybot</code> — status · <code>/mybot on|off</code>\n"
+    "<code>/mybot</code> — bot status\n"
     "<code>/removebot</code> — বট সরান\n"
     "<code>/myid</code> — আপনার User ID\n"
     "━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -847,7 +847,7 @@ async def qx_cmd_approve(update, context):
         "🎉 <b>Access Approved!</b>\n"
         "━━━━━━━━━━━━━━━━━━━━━━\n"
         f"⏳ Validity: {h(_qx_human_left(None if expires is None else expires - time.time()))}\n"
-        "এখন <code>/mybot on</code> দিয়ে আপনার বট চালু করুন।",
+        "আপনার সংরক্ষিত bot স্বয়ংক্রিয়ভাবে প্রস্তুত থাকবে।",
     )
     raise ApplicationHandlerStop
 

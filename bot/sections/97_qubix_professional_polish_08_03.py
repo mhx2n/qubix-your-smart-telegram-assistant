@@ -65,6 +65,8 @@ _QX97_DROP_LINE = (
     "listing শুধু",
     "Locked:",
     "PDF",
+    "/mybot on|off",
+    "/mybot on</code>",
 )
 
 
@@ -275,7 +277,7 @@ def _qx92_help_prompt(question: str) -> str:  # noqa: F811
         ".pt <group#> <topic#>, .listgroups, .listtopics, .info\n"
         "- Topic card: .topic, .aitopic, .topicpin, .topicunpin, .mytopics, "
         ".usetopic <id>, .cleartopic\n"
-        "- Personal bot: /addbot <token>, /mybot on|off, /removebot\n\n"
+        "- Personal bot: /addbot <token>; saved bots stay ready automatically\n\n"
         "Style: reply in the user's language (Bangla/Banglish if they wrote so), "
         "confident and practical, Telegram HTML only (<b>, <i>, <code>), exact "
         "command examples, max 12 lines. No greetings, no disclaimers.\n\n"
