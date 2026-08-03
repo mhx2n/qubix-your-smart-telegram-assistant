@@ -16,9 +16,12 @@
 # ══════════════════════════════════════════════════════════════════════════════
 
 import contextlib as _cx98
+import html as _html98
+import re as _re98
 import time as _t98
 
 import telegram as _tg98
+import requests as _requests98
 
 
 _QX98_MAIN_TOKEN = str(globals().get("BOT_TOKEN") or "").strip()
@@ -124,13 +127,108 @@ async def _qx98_plain_send(bot, chat_id, text, *, reply_to=None, thread_id=None,
     return None
 
 
+def _qx98_html_fallback(text):
+    """Convert the useful Markdown subset to valid Telegram HTML.
+
+    This is only used when Telegram's native rich endpoint is unavailable. It
+    prevents raw ##, ** and backticks from leaking into a personal-bot inbox.
+    """
+    source = str(text or "")
+    code_blocks = []
+
+    def _code_block(match):
+        code_blocks.append("<pre>" + _html98.escape(match.group(1).strip()) + "</pre>")
+        return f"\x00QXCODE{len(code_blocks) - 1}\x00"
+
+    source = _re98.sub(r"```(?:\w+)?\s*\n?([\s\S]*?)```", _code_block, source)
+    source = _html98.escape(source)
+    source = _re98.sub(r"(?m)^\s*#{1,6}\s+(.+)$", r"<b>\1</b>", source)
+    source = _re98.sub(r"\*\*([^*\n]+)\*\*", r"<b>\1</b>", source)
+    source = _re98.sub(r"(?<!\*)\*([^*\n]+)\*(?!\*)", r"<i>\1</i>", source)
+    source = _re98.sub(r"`([^`\n]+)`", r"<code>\1</code>", source)
+    source = _re98.sub(r"(?m)^\s*&gt;\s?(.+)$", r"<blockquote>\1</blockquote>", source)
+    source = _re98.sub(r"(?m)^\s*[-*]\s+", "• ", source)
+    # A Markdown table cannot be represented natively in classic HTML. Keep it
+    # aligned and readable as a preformatted block instead of exposing syntax.
+    lines = source.splitlines()
+    rendered = []
+    index = 0
+    while index < len(lines):
+        if "|" in lines[index] and index + 1 < len(lines) and _re98.match(
+            r"^\s*\|?\s*:?-{3,}", _html98.unescape(lines[index + 1])
+        ):
+            table = [lines[index]]
+            index += 2
+            while index < len(lines) and "|" in lines[index]:
+                table.append(lines[index])
+                index += 1
+            clean = "\n".join(_re98.sub(r"^\s*\||\|\s*$", "", row).strip() for row in table)
+            rendered.append("<pre>" + clean + "</pre>")
+            continue
+        rendered.append(lines[index])
+        index += 1
+    source = "\n".join(rendered)
+    for idx, block in enumerate(code_blocks):
+        source = source.replace(f"\x00QXCODE{idx}\x00", block)
+    return _re98.sub(r"\n{3,}", "\n\n", source).strip()
+
+
+async def _qx98_native_rich(bot, chat_id, text, *, reply_to=None, thread_id=None,
+                            silent=False, reply_markup=None):
+    """Use the *calling* bot token for Telegram native rich messages."""
+    token = str(getattr(bot, "token", "") or "").strip()
+    if not token:
+        return None
+    payload = {
+        "chat_id": chat_id,
+        "rich_message": {"markdown": str(text or " ")[:4000]},
+        "disable_notification": bool(silent),
+    }
+    if thread_id:
+        payload["message_thread_id"] = int(thread_id)
+    if reply_to:
+        payload["reply_parameters"] = {"message_id": int(reply_to)}
+
+    def _send():
+        return _requests98.post(
+            f"https://api.telegram.org/bot{token}/sendRichMessage",
+            json=payload,
+            timeout=20,
+        )
+
+    try:
+        response = await asyncio.wait_for(asyncio.to_thread(_send), timeout=22)
+        data = response.json()
+        message_id = int((data.get("result") or {}).get("message_id") or 0)
+        if response.ok and data.get("ok") and message_id:
+            shim = globals().get("_RichSentMessage77")
+            sent = shim(bot, chat_id, message_id, text) if callable(shim) else None
+            if reply_markup is not None:
+                with _cx98.suppress(Exception):
+                    await bot.edit_message_reply_markup(
+                        chat_id=chat_id, message_id=message_id, reply_markup=reply_markup
+                    )
+            return sent
+    except Exception:
+        return None
+    return None
+
+
 async def rich_send_77(bot, chat_id, text, **kwargs):  # noqa: F811
     if not _qx98_is_main(bot):
-        return await _qx98_plain_send(
+        sent = await _qx98_native_rich(
             bot, chat_id, text,
             reply_to=kwargs.get("reply_to"),
             thread_id=kwargs.get("thread_id"),
             silent=bool(kwargs.get("silent")),
+            reply_markup=kwargs.get("reply_markup"),
+        )
+        if sent is not None:
+            return sent
+        return await _qx98_plain_send(
+            bot, chat_id, _qx98_html_fallback(text),
+            reply_to=kwargs.get("reply_to"), thread_id=kwargs.get("thread_id"),
+            silent=bool(kwargs.get("silent")), reply_markup=kwargs.get("reply_markup"),
         )
     if callable(_qx98_prev_rich):
         return await _qx98_prev_rich(bot, chat_id, text, **kwargs)
@@ -145,12 +243,20 @@ async def rich_send_blocks_77(bot, chat_id, blocks, **kwargs):  # noqa: F811
                 parts.append(str(block.get("html") or block.get("markdown") or block.get("text") or ""))
             else:
                 parts.append(str(block))
-        return await _qx98_plain_send(
-            bot, chat_id, "\n\n".join(p for p in parts if p),
+        content = "\n\n".join(p for p in parts if p)
+        sent = await _qx98_native_rich(
+            bot, chat_id, content,
             reply_to=kwargs.get("reply_to"),
             thread_id=kwargs.get("thread_id"),
             silent=bool(kwargs.get("silent")),
             reply_markup=kwargs.get("reply_markup"),
+        )
+        if sent is not None:
+            return sent
+        return await _qx98_plain_send(
+            bot, chat_id, _qx98_html_fallback(content),
+            reply_to=kwargs.get("reply_to"), thread_id=kwargs.get("thread_id"),
+            silent=bool(kwargs.get("silent")), reply_markup=kwargs.get("reply_markup"),
         )
     if callable(_qx98_prev_blocks):
         return await _qx98_prev_blocks(bot, chat_id, blocks, **kwargs)

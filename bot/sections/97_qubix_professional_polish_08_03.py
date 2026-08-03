@@ -460,19 +460,9 @@ def build_app():  # noqa: F811
             else:
                 app.add_handler(CommandHandler(name, qx97_help), group=-1050)
 
-    # Short aliases for prefix / explanation-link setup.
-    alias_map = (
-        ("sp", globals().get("cmd_setprefix")),
-        ("sx", globals().get("cmd_setexplink")),
-    )
-    for name, callback in alias_map:
-        if not callable(callback):
-            continue
-        with _cx97.suppress(Exception):
-            if callable(register):
-                register(app, name, callback, group=-900)
-            else:
-                app.add_handler(CommandHandler(name, callback), group=-900)
+    # .sp/.sx are already registered by the canonical alias registry (section
+    # 26). Registering them again here executed the database update twice, so
+    # the second confirmation showed the first update as its "old" value.
 
     _qx_log.info("[QUBIX-97] professional polish wired (AI help, CSV-only, score reply, full command sheet).")
     return app
