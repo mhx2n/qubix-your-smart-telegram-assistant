@@ -499,6 +499,11 @@ def build_app():  # noqa: F811
             _dual(command, qx95_cmd_buffercount, -1013)
     with contextlib.suppress(Exception):
         _dual("gen", qx95_cmd_gen, -1013)
+    with contextlib.suppress(Exception):
+        app.add_handler(
+            CallbackQueryHandler(qx95_owner_callback_shield, pattern=r"^qx94:"), group=-1029
+        )
+
 
     _qx_log.info("[QUBIX-95] noise-free surface: dedupe, staff-noise mute, merged gen card.")
     return app
