@@ -286,16 +286,38 @@ def _qx95_pretty_source(kind: str, source: Dict[str, Any]) -> str:
     return _QX95_SOURCE_LABEL.get(label, "🧩 Source content" if kind == "poll" else "📝 Text topic")
 
 
+def _qx95_channel_directory(uid: int) -> str:
+    """Numbered channel directory for the result card (no post buttons)."""
+    try:
+        channels = channel_list_for_user(uid) or []
+    except Exception:
+        channels = []
+    if not channels:
+        return (
+            "📣 <b>Channel Directory</b>\n"
+            "কোনো channel সংযুক্ত নেই — <code>/addchannel @channel</code> দিয়ে যোগ করুন।"
+        )
+    lines = ["📣 <b>Channel Directory</b>"]
+    for ch in channels[:25]:
+        title = str(getattr(ch, "title", None) or getattr(ch, "channel_chat_id", "—"))
+        lines.append(f"<code>{getattr(ch, 'id', '?')}</code> · <b>{h(title[:32])}</b>")
+    lines.append("Publish: <code>.post &lt;channel#&gt;</code>")
+    return "\n".join(lines)
+
+
 async def _qx95_result_kb(context, uid: int, chat_id: int) -> Optional[InlineKeyboardMarkup]:
     with contextlib.suppress(Exception):
-        try:
-            channels = channel_list_for_user(uid) or []
-        except Exception:
-            channels = []
         token = uuid.uuid4().hex[:10]
         _pb_store(context)[token] = {"uid": uid, "chat_id": chat_id, "ts": time.time()}
-        return _pb_action_kb(token, channels)
+        return InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("📂 Export CSV", callback_data=f"pba:csv:{token}"),
+                InlineKeyboardButton("🧹 Clear Buffer", callback_data=f"pba:clr:{token}"),
+            ],
+            [InlineKeyboardButton("✖ Close", callback_data=f"pba:close:{token}")],
+        ])
     return None
+
 
 
 async def qx95_cmd_gen(update, context):
