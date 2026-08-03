@@ -28,6 +28,14 @@ with contextlib.suppress(Exception):
         "exo", "exf", "score", "b", "c",
     }
 
+# Buffer-count and buffer-clear are user features again (mutate in place so the
+# section-92 gate, which reads the same set object, sees the change).
+with contextlib.suppress(Exception):
+    for _name in ("buffercount", "bc", "b", "clear", "c"):
+        QX_RETIRED_USER_COMMANDS.discard(_name)
+
+
+
 
 def _qx95_is_tenant(context) -> bool:
     """True when the update arrived on a token-added personal bot."""
