@@ -333,11 +333,14 @@ def _qx99_is_owner(uid: int) -> bool:
 
 
 def _qx99_client():
+    if not QX99_MONGO_URI:
+        return None
     factory = globals().get("_mongo_client")
     if callable(factory):
         client = factory()
         if client is not None:
             return client
+
     try:
         from pymongo import MongoClient
         client = MongoClient(
