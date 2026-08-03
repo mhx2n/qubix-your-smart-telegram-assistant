@@ -308,14 +308,19 @@ _QX99_RESUME_TARGETS: dict = {}
 # 2) MONGODB ANALYSIS + ON-DEMAND BACKUP CONSOLE (owner only)
 # ═════════════════════════════════════════════════════════════════════════════
 QX99_MONGO_URI = (
-    str(globals().get("MONGO_URI") or "").strip()
-    or os.getenv("MONGODB_URI", "").strip()
-    or "mongodb+srv://mewmew22331:446350.mewmew22331@cluster0.fcrvstb.mongodb.net/?appName=Cluster0"
+    os.getenv("MONGODB_URI", "").strip()
+    or os.getenv("MONGO_URI", "").strip()
+    or str(globals().get("MONGO_URI") or "").strip()
 )
-QX99_MONGO_DB = str(globals().get("MONGO_DB_NAME") or "").strip() or "qubix_db"
+QX99_MONGO_DB = (
+    os.getenv("MONGODB_DB", "").strip()
+    or str(globals().get("MONGO_DB_NAME") or "").strip()
+    or "qubix_db"
+)
 
 globals()["MONGO_URI"] = QX99_MONGO_URI
 globals()["MONGO_DB_NAME"] = QX99_MONGO_DB
+
 
 
 def _qx99_is_owner(uid: int) -> bool:
