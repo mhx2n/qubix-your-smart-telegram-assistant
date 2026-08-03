@@ -402,6 +402,8 @@ async def qx95_cmd_gen(update, context):
         if status is not None:
             with contextlib.suppress(Exception):
                 await status.delete()
+            _qx95_cards.pop(_qx95_key, None)
+
         token = uuid.uuid4().hex[:10]
         _g59_store(context)[token] = {
             "uid": uid, "chat_id": message.chat_id, "mode": mode or "",
