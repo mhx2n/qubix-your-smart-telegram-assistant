@@ -469,7 +469,7 @@ class QxRunner:
         cloned = 0
         for group, handlers in sorted(template.handlers.items()):
             for handler in handlers:
-                if getattr(handler, "_qx_main_only", False):
+                if _qx_is_main_only(handler):
                     continue
                 with contextlib.suppress(Exception):
                     child.add_handler(handler, group=group)
@@ -934,10 +934,17 @@ async def qx_cmd_kill(update, context):
 # ─────────────────────────────────────────────────────────────────────────────
 # Wiring
 # ─────────────────────────────────────────────────────────────────────────────
+_QX_MAIN_ONLY: List[Any] = []      # strong refs; PTB handlers use __slots__
+
+
 def _qx_mark(handler):
     """Handlers marked main-only are never cloned onto tenant bots."""
-    setattr(handler, "_qx_main_only", True)
+    _QX_MAIN_ONLY.append(handler)
     return handler
+
+
+def _qx_is_main_only(handler) -> bool:
+    return any(handler is x for x in _QX_MAIN_ONLY)
 
 
 _qx_prev_build_app_90 = globals().get("build_app")
