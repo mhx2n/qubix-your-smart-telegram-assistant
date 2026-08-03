@@ -308,14 +308,19 @@ _QX99_RESUME_TARGETS: dict = {}
 # 2) MONGODB ANALYSIS + ON-DEMAND BACKUP CONSOLE (owner only)
 # ═════════════════════════════════════════════════════════════════════════════
 QX99_MONGO_URI = (
-    str(globals().get("MONGO_URI") or "").strip()
-    or os.getenv("MONGODB_URI", "").strip()
-    or "mongodb+srv://mewmew22331:446350.mewmew22331@cluster0.fcrvstb.mongodb.net/?appName=Cluster0"
+    os.getenv("MONGODB_URI", "").strip()
+    or os.getenv("MONGO_URI", "").strip()
+    or str(globals().get("MONGO_URI") or "").strip()
 )
-QX99_MONGO_DB = str(globals().get("MONGO_DB_NAME") or "").strip() or "qubix_db"
+QX99_MONGO_DB = (
+    os.getenv("MONGODB_DB", "").strip()
+    or str(globals().get("MONGO_DB_NAME") or "").strip()
+    or "qubix_db"
+)
 
 globals()["MONGO_URI"] = QX99_MONGO_URI
 globals()["MONGO_DB_NAME"] = QX99_MONGO_DB
+
 
 
 def _qx99_is_owner(uid: int) -> bool:
@@ -328,11 +333,14 @@ def _qx99_is_owner(uid: int) -> bool:
 
 
 def _qx99_client():
+    if not QX99_MONGO_URI:
+        return None
     factory = globals().get("_mongo_client")
     if callable(factory):
         client = factory()
         if client is not None:
             return client
+
     try:
         from pymongo import MongoClient
         client = MongoClient(
@@ -376,15 +384,26 @@ def _qx99_pad(text: str, width: int) -> str:
 def _qx99_analysis() -> str:
     """Rich, tabular SQLite ↔ MongoDB analysis report."""
     stamp = _dt99.datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+    if not QX99_MONGO_URI:
+        return ui_box_html(
+            "Backup Console",
+            ("☁️ MongoDB এখনো কনফিগার করা হয়নি।\n\n"
+             "Render → Service → <b>Environment</b> এ যোগ করুন:\n"
+             "│ <code>MONGODB_URI</code> = আপনার connection string\n"
+             "│ <code>MONGODB_DB</code> = <code>qubix_db</code>\n\n"
+             "সেভ করে service redeploy দিলে এই কনসোল স্বয়ংক্রিয়ভাবে চালু হবে।"),
+            emoji="🔐",
+        )
     client = _qx99_client()
     if client is None:
         return ui_box_html(
             "Backup Console",
             ("☁️ MongoDB-তে সংযোগ করা যাচ্ছে না।\n"
              f"Cluster: <code>{h(QX99_MONGO_URI.split('@')[-1][:48])}</code>\n"
-             "নেটওয়ার্ক/Access-list যাচাই করে আবার চেষ্টা করুন।"),
+             "Atlas Network Access (0.0.0.0/0) ও user/password যাচাই করে আবার চেষ্টা করুন।"),
             emoji="⚠️",
         )
+
 
     rows = []
     local_total = 0
