@@ -40,23 +40,18 @@ _QX98_TRACK: dict = {}
 
 
 def _qx98_prune(now: float) -> None:
-    for key, stamp in list(_QX98_SEEN.items()):
-        if now - stamp > _QX98_WINDOW * 3:
+    for key, entry in list(_QX98_SEEN.items()):
+        if now - entry[0] > _QX98_WINDOW * 3:
             _QX98_SEEN.pop(key, None)
 
 
-def _qx98_duplicate(chat_id, text, kwargs) -> bool:
+def _qx98_key(chat_id, text, kwargs):
     if kwargs.get("reply_to_message_id") is not None:
-        return False
+        return None
     body = str(text or "")
     if len(body) < 12:
-        return False
-    now = _t98.monotonic()
-    _qx98_prune(now)
-    key = (str(chat_id), body[:400])
-    stamp = _QX98_SEEN.get(key)
-    _QX98_SEEN[key] = now
-    return stamp is not None and (now - stamp) < _QX98_WINDOW
+        return None
+    return (str(chat_id), body[:400])
 
 
 _qx98_prev_send = _tg98.Bot.send_message
@@ -65,11 +60,21 @@ _qx98_prev_send = _tg98.Bot.send_message
 async def _qx98_send_message(self, *args, **kwargs):
     chat_id = kwargs.get("chat_id", args[0] if args else None)
     text = kwargs.get("text", args[1] if len(args) > 1 else None)
+    key = None
     with _cx98.suppress(Exception):
-        if _qx98_duplicate(chat_id, text, kwargs):
-            return None
+        key = _qx98_key(chat_id, text, kwargs)
+    if key is not None:
+        now = _t98.monotonic()
+        with _cx98.suppress(Exception):
+            _qx98_prune(now)
+        cached = _QX98_SEEN.get(key)
+        if cached and (now - cached[0]) < _QX98_WINDOW:
+            return cached[1]
 
     message = await _qx98_prev_send(self, *args, **kwargs)
+    if key is not None:
+        with _cx98.suppress(Exception):
+            _QX98_SEEN[key] = (_t98.monotonic(), message)
 
     with _cx98.suppress(Exception):
         body = str(text or "")
