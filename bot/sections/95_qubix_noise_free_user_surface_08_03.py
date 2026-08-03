@@ -353,10 +353,22 @@ async def qx95_cmd_gen(update, context):
     kind, reading_line = _qx95_source_kind(reply)
 
     status = None
+    # Same source, new run → retire the previous result card so only one stays.
+    _qx95_cards = globals().setdefault("_QX95_LAST_GEN_CARD", {})
+    _qx95_key = (int(message.chat_id), int(uid))
+    _qx95_old = _qx95_cards.pop(_qx95_key, None)
+    if _qx95_old:
+        with contextlib.suppress(Exception):
+            await context.bot.delete_message(chat_id=message.chat_id, message_id=int(_qx95_old))
+
     with contextlib.suppress(Exception):
         status = await message.reply_text(
             ui_box_html("Working", reading_line, emoji="⏳"), parse_mode=ParseMode.HTML
         )
+    if status is not None:
+        with contextlib.suppress(Exception):
+            _qx95_cards[_qx95_key] = int(status.message_id)
+
 
     async def _set(title: str, body: str, emoji: str, keyboard=None):
         card = ui_box_html(title, body, emoji=emoji)
@@ -390,6 +402,8 @@ async def qx95_cmd_gen(update, context):
         if status is not None:
             with contextlib.suppress(Exception):
                 await status.delete()
+            _qx95_cards.pop(_qx95_key, None)
+
         token = uuid.uuid4().hex[:10]
         _g59_store(context)[token] = {
             "uid": uid, "chat_id": message.chat_id, "mode": mode or "",
