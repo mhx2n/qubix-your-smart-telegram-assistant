@@ -384,15 +384,26 @@ def _qx99_pad(text: str, width: int) -> str:
 def _qx99_analysis() -> str:
     """Rich, tabular SQLite ↔ MongoDB analysis report."""
     stamp = _dt99.datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+    if not QX99_MONGO_URI:
+        return ui_box_html(
+            "Backup Console",
+            ("☁️ MongoDB এখনো কনফিগার করা হয়নি।\n\n"
+             "Render → Service → <b>Environment</b> এ যোগ করুন:\n"
+             "│ <code>MONGODB_URI</code> = আপনার connection string\n"
+             "│ <code>MONGODB_DB</code> = <code>qubix_db</code>\n\n"
+             "সেভ করে service redeploy দিলে এই কনসোল স্বয়ংক্রিয়ভাবে চালু হবে।"),
+            emoji="🔐",
+        )
     client = _qx99_client()
     if client is None:
         return ui_box_html(
             "Backup Console",
             ("☁️ MongoDB-তে সংযোগ করা যাচ্ছে না।\n"
              f"Cluster: <code>{h(QX99_MONGO_URI.split('@')[-1][:48])}</code>\n"
-             "নেটওয়ার্ক/Access-list যাচাই করে আবার চেষ্টা করুন।"),
+             "Atlas Network Access (0.0.0.0/0) ও user/password যাচাই করে আবার চেষ্টা করুন।"),
             emoji="⚠️",
         )
+
 
     rows = []
     local_total = 0
