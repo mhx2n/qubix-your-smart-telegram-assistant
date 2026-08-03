@@ -51,7 +51,7 @@ def _is_owner_id(user_id) -> bool:
         return False
 
 OWNER_CONTACT = "@Your_Himus"
-BOT_BRAND = "প্রবাহ"
+BOT_BRAND = "Qubix"
 
 DB_PATH = "probaho_bot.sqlite3"
 MAX_BUFFERED_QUESTIONS = 500
