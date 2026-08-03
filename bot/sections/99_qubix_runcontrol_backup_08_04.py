@@ -623,3 +623,20 @@ def build_app():  # noqa: F811
 
 
 _qx99_log("section 99 loaded (instant stop, true resume, Mongo analysis console)")
+
+
+# ── Owner surface: expose the backup console in the owner panel & "/" menu ───
+with _cx99.suppress(Exception):
+    if "🗄" not in QX94_OWNER_CARD:
+        QX94_OWNER_CARD = QX94_OWNER_CARD + (
+            "\n\n🗄 <b>Cloud backup console</b>\n"
+            "<code>/qbackup</code> — MongoDB analysis table + on-demand backup/restore "
+            "(অটো নয়, শুধু আপনি চাইলে)।"
+        )
+        globals()["QX94_OWNER_CARD"] = QX94_OWNER_CARD
+
+with _cx99.suppress(Exception):
+    _menu99 = list(globals().get("QX94_OWNER_MENU_COMMANDS") or [])
+    if _menu99 and not any(n == "qbackup" for n, _ in _menu99):
+        _menu99.append(("qbackup", "MongoDB backup console"))
+        globals()["QX94_OWNER_MENU_COMMANDS"] = _menu99[:30]
