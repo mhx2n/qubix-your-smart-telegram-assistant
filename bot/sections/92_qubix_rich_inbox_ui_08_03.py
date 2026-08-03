@@ -333,7 +333,7 @@ async def qx92_on_callback(update, context):
                 "তারপর <code>/listchannels</code> → <code>.post &lt;channel#&gt;</code>।"
             )
     elif action == "topics":
-        if not await _qx92_invoke("cmd_mytopics", update, context):
+        if not await _qx92_invoke("_cmd_mytopics_m", update, context):
             await _card(
                 "🧵 <b>Topics</b>\n<code>─────────────────────────</code>\n"
                 "Text/media reply করে <code>.topic c1 pin</code> বা <code>.aitopic c1 pin</code>, "
