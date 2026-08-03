@@ -18,8 +18,8 @@
 #          (token kept in memory only, never written to the DB).
 #        • On expiry the user gets a professional card with their user id and
 #          the owner contact to request permission.
-#   5. On-demand lifecycle: a user bot runs only while the user is working.
-#      Idle bots are stopped automatically and wake instantly on command.
+#   5. On-demand lifecycle: idle bots perform no work and resume silently on
+#      the next update; users never need a separate wake command.
 # ══════════════════════════════════════════════════════════════════════════════
 
 import contextvars as _qx_cv
@@ -35,7 +35,10 @@ QX_BRAND = "Qubix"
 QX_OWNER_CONTACT = str(globals().get("OWNER_CONTACT") or "@Your_Himus")
 
 QX_DEFAULT_TRIAL_SECONDS = 15 * 60      # owner-tunable via /qtrial
-QX_IDLE_STOP_SECONDS = 15 * 60          # user bot sleeps after this idle time
+# A Telegram bot that has fully stopped polling cannot receive the command that
+# is supposed to wake it.  Tenant bots therefore keep only their lightweight
+# update listener alive while idle; work starts naturally with the next update.
+QX_IDLE_STOP_SECONDS = 0
 QX_WATCHDOG_TICK = 20                   # seconds
 
 # Commands a tenant must never run on their own bot (owner-infrastructure).
@@ -383,7 +386,7 @@ def _qx_access_card(uid: int, name: str, st: Dict[str, Any], username: str = "")
     if not st.get("ok"):
         lines.append(f"Access নিতে owner-কে জানান: {h(QX_OWNER_CONTACT)}")
     else:
-        lines.append("Command: <code>/mybot on</code> · <code>/mybot off</code> · <code>/removebot</code>")
+        lines.append("আপনার bot idle অবস্থায়ও পরের command স্বয়ংক্রিয়ভাবে গ্রহণ করবে।")
     return "\n".join(lines)
 
 
@@ -578,14 +581,10 @@ async def _qx_watchdog() -> None:
                         _qx_mark_warned(uid)
                         await _qx_notify(uid, _qx_expired_card(uid, runner.name))
                     continue
-                if runner.idle_for() > QX_IDLE_STOP_SECONDS:
-                    await _qx_stop_runner(uid, reason="idle")
-                    await _qx_notify(
-                        uid,
-                        "😴 <b>আপনার বট sleep mode-এ গেল</b> (নিষ্ক্রিয় ছিল)।\n"
-                        "আবার চালু করতে Qubix-এ <code>/mybot on</code> দিন — "
-                        "সাথে সাথে কাজ শুরু হবে।",
-                    )
+                # Do not stop polling for inactivity.  A stopped Telegram bot
+                # cannot see the next command, so true command-driven auto-wake
+                # is impossible.  Keeping the listener alive is effectively
+                # idle (no generation/posting work) and resumes silently.
         except asyncio.CancelledError:
             raise
         except Exception:
@@ -612,7 +611,7 @@ QX_USER_HELP = (
     "• 🧵 Forum topic তৈরি করে সেখানে reply দিয়ে quiz পাঠানো\n\n"
     "<b>Commands:</b>\n"
     "<code>/addbot &lt;token&gt;</code> — বট যুক্ত করুন\n"
-    "<code>/mybot</code> — status · <code>/mybot on|off</code>\n"
+    "<code>/mybot</code> — bot status\n"
     "<code>/removebot</code> — বট সরান\n"
     "<code>/myid</code> — আপনার User ID\n"
     "━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -698,7 +697,7 @@ async def _qx_register_token(update, uid: int, name: str, token: str):
             "━━━━━━━━━━━━━━━━━━━━━━\n"
             f"এখন @{h(username)}-এ গিয়ে quiz forward করুন, ছবি দিন বা টেক্সটে reply করুন — "
             "আনলিমিটেড quiz generate হবে।\n"
-            "<i>নিষ্ক্রিয় থাকলে বট ঘুমিয়ে যাবে; /mybot on দিলেই সাথে সাথে জেগে উঠবে।</i>",
+            "<i>নিষ্ক্রিয় অবস্থায় বট নিজে থেকেই idle থাকবে; পরের command-এ নীরবে কাজ শুরু করবে।</i>",
             parse_mode=ParseMode.HTML,
         )
 
@@ -848,7 +847,7 @@ async def qx_cmd_approve(update, context):
         "🎉 <b>Access Approved!</b>\n"
         "━━━━━━━━━━━━━━━━━━━━━━\n"
         f"⏳ Validity: {h(_qx_human_left(None if expires is None else expires - time.time()))}\n"
-        "এখন <code>/mybot on</code> দিয়ে আপনার বট চালু করুন।",
+        "আপনার সংরক্ষিত bot স্বয়ংক্রিয়ভাবে প্রস্তুত থাকবে।",
     )
     raise ApplicationHandlerStop
 
@@ -1002,6 +1001,14 @@ def build_app():  # noqa: F811
         with contextlib.suppress(Exception):
             asyncio.create_task(_qx_watchdog())
             _qx_log.info("[QUBIX] multi-tenant watchdog started.")
+        # Restore approved personal bots after a service restart.  Their polling
+        # listeners remain silent while idle, so users never need /mybot on.
+        for row in _qx_all_saved_bots():
+            uid = int(row["user_id"])
+            if not _qx_access(uid).get("ok"):
+                continue
+            with contextlib.suppress(Exception):
+                asyncio.create_task(_qx_start_runner(uid))
 
     app.post_init = _qx_post_init
 

@@ -65,6 +65,8 @@ _QX97_DROP_LINE = (
     "listing শুধু",
     "Locked:",
     "PDF",
+    "/mybot on|off",
+    "/mybot on</code>",
 )
 
 
@@ -275,7 +277,7 @@ def _qx92_help_prompt(question: str) -> str:  # noqa: F811
         ".pt <group#> <topic#>, .listgroups, .listtopics, .info\n"
         "- Topic card: .topic, .aitopic, .topicpin, .topicunpin, .mytopics, "
         ".usetopic <id>, .cleartopic\n"
-        "- Personal bot: /addbot <token>, /mybot on|off, /removebot\n\n"
+        "- Personal bot: /addbot <token>; saved bots stay ready automatically\n\n"
         "Style: reply in the user's language (Bangla/Banglish if they wrote so), "
         "confident and practical, Telegram HTML only (<b>, <i>, <code>), exact "
         "command examples, max 12 lines. No greetings, no disclaimers.\n\n"
@@ -460,19 +462,9 @@ def build_app():  # noqa: F811
             else:
                 app.add_handler(CommandHandler(name, qx97_help), group=-1050)
 
-    # Short aliases for prefix / explanation-link setup.
-    alias_map = (
-        ("sp", globals().get("cmd_setprefix")),
-        ("sx", globals().get("cmd_setexplink")),
-    )
-    for name, callback in alias_map:
-        if not callable(callback):
-            continue
-        with _cx97.suppress(Exception):
-            if callable(register):
-                register(app, name, callback, group=-900)
-            else:
-                app.add_handler(CommandHandler(name, callback), group=-900)
+    # .sp/.sx are already registered by the canonical alias registry (section
+    # 26). Registering them again here executed the database update twice, so
+    # the second confirmation showed the first update as its "old" value.
 
     _qx_log.info("[QUBIX-97] professional polish wired (AI help, CSV-only, score reply, full command sheet).")
     return app
