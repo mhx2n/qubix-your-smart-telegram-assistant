@@ -449,13 +449,14 @@ async def qx95_cmd_gen(update, context):
     )
     if added:
         body += (
-            "📤 <code>.done</code> — CSV + JSON\n"
-            "📣 <code>.post &lt;channel#&gt;</code> · "
-            "🧵 <code>.pt &lt;group#&gt; &lt;topic#&gt;</code>\n"
-            "🔁 একই source-এ আবার command দিলে আরও unique quiz হবে।"
+            "📤 Export — <code>.done</code> (CSV)\n"
+            "🧵 Topic publish — <code>.pt &lt;group#&gt; &lt;topic#&gt;</code>\n"
+            "🔁 একই source-এ আবার command দিলে সম্পূর্ণ নতুন unique set তৈরি হবে।\n\n"
+            + _qx95_channel_directory(uid)
         )
     else:
-        body += "এই source থেকে নতুন unique quiz পাওয়া যায়নি। অন্য source দিয়ে চেষ্টা করুন।"
+        body += "এই source থেকে নতুন unique quiz পাওয়া যায়নি। ভিন্ন source ব্যবহার করুন।"
+
 
     await _set("Quiz Ready" if added else "No New Quiz", body, "✅" if added else "ℹ️", keyboard)
     raise ApplicationHandlerStop
