@@ -173,7 +173,29 @@ async def qx95_panel_router_help(update, context):
     await qx95_panel_router(update, context)
 
 
+async def qx95_owner_callback_shield(update, context):
+    """Owner-panel buttons must never act inside a token-added personal bot."""
+    query = getattr(update, "callback_query", None)
+    if query is None:
+        return
+    if not _qx95_is_tenant(context):
+        return
+    with contextlib.suppress(Exception):
+        await query.answer()
+    uid = _qx95_scope_uid(update, context)
+    st = _qx_access(uid)
+    with contextlib.suppress(Exception):
+        await query.edit_message_text(
+            await _qx94_user_menu_text(update, context, uid, st),
+            parse_mode=ParseMode.HTML,
+            reply_markup=_qx93_menu_kb(),
+            disable_web_page_preview=True,
+        )
+    raise ApplicationHandlerStop
+
+
 async def qx95_cmd_commands(update, context):
+
     tenant = _qx95_is_tenant(context)
     owner = False
     with contextlib.suppress(Exception):
