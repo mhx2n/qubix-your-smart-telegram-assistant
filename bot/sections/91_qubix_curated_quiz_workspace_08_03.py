@@ -285,6 +285,30 @@ async def qx91_main_gate(update, context):
     raise ApplicationHandlerStop
 
 
+async def qx91_callback_gate(update, context):
+    """Restore the user's scoped owner context for interactive workspace cards."""
+    query = getattr(update, "callback_query", None)
+    user = getattr(update, "effective_user", None)
+    uid = int(getattr(user, "id", 0) or 0)
+    if not query or not uid or _qx_real_owner(uid) or (_qx_prev_is_admin and _qx_prev_is_admin(uid)):
+        return
+    tenant_uid = int(context.application.bot_data.get("qx_tenant_uid") or 0)
+    if tenant_uid and uid != tenant_uid:
+        await query.answer("This personal workspace is private.", show_alert=True)
+        raise ApplicationHandlerStop
+    scoped_uid = tenant_uid or uid
+    st = _qx_access(scoped_uid)
+    if not st.get("ok"):
+        await query.answer("Your Qubix access has expired.", show_alert=True)
+        raise ApplicationHandlerStop
+    data = str(getattr(query, "data", "") or "")
+    if not data.startswith(QX_WORKSPACE_CALLBACK_PREFIXES):
+        await query.answer("This control is not available in your workspace.", show_alert=True)
+        raise ApplicationHandlerStop
+    _QX_ACTING_OWNER.set(scoped_uid)
+    context.application.bot_data["qx_last_active"] = time.time()
+
+
 async def qx91_child_gate(update, context):
     """Allow only the curated workspace on a tenant bot."""
     owner_uid = int(context.application.bot_data.get("qx_tenant_uid") or 0)
@@ -350,10 +374,11 @@ def build_app():  # noqa: F811
         _dual("topicpin", qx91_cmd_topicpin, -975)
         _dual("topicunpin", qx91_cmd_topicunpin, -975)
 
-    # A gate registered before section 90's old control-panel gate changes the
-    # main user surface into the curated workspace and supplies acting ownership.
+    # Gates run before every legacy handler. They convert the approved/trial
+    # identity into a tightly scoped acting owner for only the current update.
     with contextlib.suppress(Exception):
-        app.add_handler(MessageHandler(filters.ALL, qx91_main_gate), group=-960)
+        app.add_handler(MessageHandler(filters.ALL, qx91_main_gate), group=-1010)
+        app.add_handler(CallbackQueryHandler(qx91_callback_gate), group=-1010)
 
     _qx_log.info("[QUBIX-91] curated main/personal quiz workspace wired.")
     return app
