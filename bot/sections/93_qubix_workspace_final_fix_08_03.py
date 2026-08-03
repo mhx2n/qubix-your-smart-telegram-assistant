@@ -55,9 +55,7 @@ async def _qx93_bot_label(context) -> str:
         return str(data["qx93_label"])
     label = "Qubix"
     with contextlib.suppress(Exception):
-        me = context.bot.bot if getattr(context.bot, "bot", None) else None
-        if me is None:
-            me = await context.bot.get_me()
+        me = await context.bot.get_me()
         name = str(getattr(me, "first_name", "") or "").strip()
         username = str(getattr(me, "username", "") or "").strip()
         label = name or "Qubix"
