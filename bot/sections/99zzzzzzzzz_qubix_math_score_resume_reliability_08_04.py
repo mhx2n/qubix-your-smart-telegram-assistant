@@ -313,8 +313,9 @@ def _qx99_shield(callback):  # noqa: F811
                 _QX99_RUN_UID.reset(token)
                 token = None
             remaining = int(buffer_count(uid))
-            await _qx99_notify(update, context, _qx99_stop_card(sent, remaining))
-            pending["status"] = list((_QX99_PENDING.get(uid) or {}).get("status") or pending["status"])
+            halted = await _qx99_notify(update, context, _qx99_stop_card(sent, remaining))
+            if halted is not None:
+                pending.setdefault("status", []).append((halted.chat_id, halted.message_id))
             _qx107_log(f"run halted uid={uid} sent={sent} remaining={remaining} keep={keep}")
             raise _AHS99
         finally:
@@ -467,6 +468,61 @@ async def qx106_cmd_scoreformat(update, context):  # noqa: F811
 globals()["qx106_cmd_scoreformat"] = qx106_cmd_scoreformat
 
 
+# The legacy direct channel publisher created its own plain score text and never
+# reached the final rich/custom score function. Route it through the common
+# publisher so normal, stopped and resumed runs all share one count and template.
+@require_admin
+async def cmd_post(update, context):  # noqa: F811
+    message = getattr(update, "effective_message", None)
+    user = getattr(update, "effective_user", None)
+    if message is None or user is None:
+        return
+    admin_id = int(user.id)
+    args = list(getattr(context, "args", None) or [])
+    if not args or not str(args[0]).isdigit():
+        await safe_reply(update, usage_box(
+            "post", "<channel#> [keep]",
+            "Buffer-এর quiz channel-এ publish করুন; keep দিলে পুরো buffer অক্ষত থাকবে.",
+        ))
+        return
+    channel = channel_get_by_id_for_user(admin_id, int(args[0]))
+    if channel is None:
+        await warn_html(update, "Channel Not Found", "<code>/listchannels</code> থেকে channel# নিন।")
+        return
+    items = list(buffer_list(admin_id, limit=MAX_BUFFERED_QUESTIONS) or [])
+    if not items:
+        await warn(update, "Buffer Empty", "Publish করার মতো quiz নেই।")
+        return
+    keep = any(str(arg).strip().lower() == "keep" for arg in args[1:])
+    await info_html(
+        update, "Posting to Channel",
+        f"<code>{_html107.escape(str(channel.title))}</code>\n\n"
+        f"মোট <code>{len(items)}</code>টি quiz publish হচ্ছে…",
+    )
+    ok_count, fail_count, first_id = await _post_buffer_to_chat(
+        context, admin_id, int(channel.channel_chat_id), items,
+        group_prefix=str(channel.prefix or ""),
+        group_expl_link=str(channel.expl_link or ""),
+    )
+    total_ok = int(ok_count or 0) + _qx107_context_offset(context)
+    if ok_count:
+        await _send_score_msg(
+            context, admin_id, int(channel.channel_chat_id), int(ok_count), first_id,
+        )
+    inc_admin_post(admin_id, int(ok_count or 0))
+    if ok_count and not keep:
+        successful_ids = [int(row_id) for row_id, _payload in items[:int(ok_count)]]
+        buffer_remove_ids(admin_id, successful_ids)
+    await ok(
+        update, "Posting Complete",
+        f"Posted: {total_ok}\nFailed: {int(fail_count or 0)}\n"
+        f"Remaining in Buffer: {buffer_count(admin_id)}",
+    )
+
+
+globals()["cmd_post"] = cmd_post
+
+
 _qx107_previous_build = globals().get("build_app")
 
 
@@ -478,6 +534,8 @@ def build_app():  # noqa: F811
     if callable(register):
         with _cx107.suppress(Exception):
             register(app, "scoreformat", qx106_cmd_scoreformat, filters.ChatType.PRIVATE, group=-5000)
+            register(app, "post", cmd_post, filters.ChatType.PRIVATE, group=-5000)
+            register(app, "p", cmd_post, filters.ChatType.PRIVATE, group=-5000)
     return app
 
 
