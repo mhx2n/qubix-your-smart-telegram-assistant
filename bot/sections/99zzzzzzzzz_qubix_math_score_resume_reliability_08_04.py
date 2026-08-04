@@ -161,6 +161,17 @@ if callable(_qx107_previous_generate):
     globals()["_generate_quizzes_from_ocr_sync"] = _generate_quizzes_from_ocr_sync
 
 
+# Retire the old two-message math mode (a separate rich card followed by a poll
+# whose stem only said “উপরের প্রশ্ন…”). If the card failed, users saw a useless
+# placeholder poll. The final transport below now puts the repaired, complete
+# mathematical question and options directly inside the Telegram quiz poll.
+def _math_post_on_78():  # noqa: F811
+    return False
+
+
+globals()["_math_post_on_78"] = _math_post_on_78
+
+
 # Final transport safety: no raw LaTeX delimiters or duplicated option labels
 # can reach a Telegram poll, even if a legacy/manual buffer row contains them.
 _qx107_previous_send_poll = telegram.Bot.send_poll
