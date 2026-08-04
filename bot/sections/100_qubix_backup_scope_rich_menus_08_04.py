@@ -370,3 +370,29 @@ globals()["_qx94_bot_commands"] = _qx94_bot_commands
 _qx100_log(
     "backup scope trimmed, rich table console wired, full command menus published"
 )
+
+
+# Tenant bots must publish the user sheet without self-management commands.
+_qx100_prev_runner_start = None
+with _cx100.suppress(Exception):
+    _qx100_prev_runner_start = QxRunner.start
+
+
+async def _qx100_runner_start(self):
+    ok_started, info = await _qx100_prev_runner_start(self)
+    if ok_started and getattr(self, "app", None) is not None:
+        token = None
+        with _cx100.suppress(Exception):
+            token = globals()["_QX97_TENANT"].set(True)
+        try:
+            with _cx100.suppress(Exception):
+                await self.app.bot.set_my_commands(_qx94_bot_commands(False))
+        finally:
+            if token is not None:
+                with _cx100.suppress(Exception):
+                    globals()["_QX97_TENANT"].reset(token)
+    return ok_started, info
+
+
+if callable(_qx100_prev_runner_start):
+    QxRunner.start = _qx100_runner_start
