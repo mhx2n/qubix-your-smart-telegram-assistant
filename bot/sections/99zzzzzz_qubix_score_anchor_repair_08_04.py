@@ -254,23 +254,8 @@ def _qx104_track(bot, kwargs: dict, message) -> None:
 
 globals()["_qx102_track"] = _qx104_track
 
-_qx104_prev_send_poll = _tg104.Bot.send_poll
-
-
-async def _qx104_send_poll(self, *args, **kwargs):
-    merged = dict(kwargs)
-    if args:
-        for index, name in enumerate(("chat_id", "question", "options")):
-            if index < len(args):
-                merged.setdefault(name, args[index])
-    message = await _qx104_prev_send_poll(self, *args, **kwargs)
-    with _cx104.suppress(Exception):
-        _qx104_track(self, merged, message)
-    return message
-
-
-_qx104_send_poll._qx104 = True  # type: ignore[attr-defined]
-_tg104.Bot.send_poll = _qx104_send_poll
+# send_poll is NOT re-wrapped: the section-102 wrapper resolves _qx102_track
+# from the shared namespace at call time, so the override above is enough.
 
 
 _log104("score cards restored; manual-topic anchors refresh every batch, "
