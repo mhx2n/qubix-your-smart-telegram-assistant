@@ -3,6 +3,7 @@
 # Loaded last by bot/__main__.py; do not import directly.
 # ──────────────────────────────────────────────────────────────────────────────
 
+import asyncio as _async107
 import contextlib as _cx107
 import html as _html107
 import json as _json107
@@ -433,11 +434,13 @@ async def qx106_cmd_scoreformat(update, context):  # noqa: F811
         raise _AHS106
     if not args:
         await message.reply_text(
-            "🎨 <b>Custom Score Card</b>\n━━━━━━━━━━━━━━━━━━━━\n"
-            "<b>Rich format:</b> পছন্দের formatted message-এ reply করে\n"
-            "<code>/scoreformat 1</code>\n\n"
-            "<b>সহজ plain format:</b>\n"
-            "<code>/scoreformat 1 🏆 মোট {count}টি প্রশ্ন · {channel}</code>\n\n"
+            "🎨 <b>AI Score Card Studio</b>\n━━━━━━━━━━━━━━━━━━━━\n"
+            "<b>AI দিয়ে বানান:</b>\n"
+            "<code>/scoreformat 1 ai</code>\n"
+            "<code>/scoreformat 1 ai নীল-সাদা professional result card</code>\n\n"
+            "<b>নিজে customize করুন:</b> rich formatted message-এ reply করে\n"
+            "<code>/scoreformat 1</code>\n"
+            "অথবা সরাসরি <code>/scoreformat 1 🏆 মোট {count}টি প্রশ্ন · {channel}</code>\n\n"
             "Placeholder: <code>{count}</code> · <code>{channel}</code>\n"
             "Default: <code>/scoreformat 1 reset</code>\n"
             "Channel number: <code>/listchannels</code>",
@@ -449,9 +452,32 @@ async def qx106_cmd_scoreformat(update, context):  # noqa: F811
         await message.reply_text("⚠️ Channel পাওয়া যায়নি। /listchannels থেকে channel# নিন।")
         raise _AHS106
     reset = len(args) > 1 and str(args[1]).lower() in ("reset", "default", "off")
+    ai_mode = len(args) > 1 and str(args[1]).lower() in ("ai", "generate", "make")
     reply = getattr(message, "reply_to_message", None)
     rich = ""
-    if reply is not None:
+    if ai_mode:
+        instructions = " ".join(str(arg) for arg in args[2:]).strip()
+        status = await message.reply_text("✨ AI score card তৈরি হচ্ছে…")
+        try:
+            rich = await _async107.wait_for(
+                _async107.to_thread(
+                    _qx107_generate_score_template,
+                    str(channel.title or ""),
+                    instructions,
+                ),
+                timeout=45,
+            )
+        except Exception as exc:
+            with _cx107.suppress(Exception):
+                await status.edit_text(
+                    "⚠️ AI score card তৈরি হয়নি। আবার চেষ্টা করুন।\n"
+                    f"<code>{_html107.escape(str(exc)[:180])}</code>",
+                    parse_mode=_PM106.HTML,
+                )
+            raise _AHS106
+        with _cx107.suppress(Exception):
+            await status.delete()
+    elif reply is not None:
         rich = str(getattr(reply, "text_html_urled", "") or getattr(reply, "caption_html_urled", "") or "")
         if not rich:
             rich = _html107.escape(str(getattr(reply, "text", "") or getattr(reply, "caption", "") or ""))
@@ -472,13 +498,65 @@ async def qx106_cmd_scoreformat(update, context):  # noqa: F811
         conn.close()
     preview = _qx106_render_score("" if reset else rich, 25, channel.title)
     await message.reply_text(
-        "✅ <b>Score format saved</b>\n━━━━━━━━━━━━━━━━━━━━\n" + preview,
+        ("✅ <b>AI score format generated &amp; saved</b>\n" if ai_mode else
+         "✅ <b>Score format saved</b>\n")
+        + "━━━━━━━━━━━━━━━━━━━━\n" + preview
+        + "\n━━━━━━━━━━━━━━━━━━━━\n"
+          "পছন্দ না হলে নতুন instruction দিয়ে <code>/scoreformat "
+        + str(channel.id) + " ai ...</code> দিন, অথবা rich message reply করে customize করুন।",
         parse_mode=_PM106.HTML, disable_web_page_preview=True,
     )
     raise _AHS106
 
 
 globals()["qx106_cmd_scoreformat"] = qx106_cmd_scoreformat
+
+
+def _qx107_generate_score_template(channel_title, instructions):
+    prompt = (
+        "Create one polished Telegram score/result card in concise Markdown. "
+        "It is sent after a quiz set and replies to the first quiz. Use tasteful emoji, "
+        "a strong heading, clean separators and short Bengali copy. The literal placeholder "
+        "{count} MUST appear exactly once. The literal placeholder {channel} may appear once. "
+        "Do not invent a numeric score, links, buttons, rankings, or user names. "
+        "Return only the card, no code fence and no explanation.\n\n"
+        f"CHANNEL: {str(channel_title or '')[:200]}\n"
+        f"CUSTOMIZATION: {str(instructions or 'professional premium educational style')[:1000]}"
+    )
+    last_error = ""
+    caller = globals().get("_adv_call_text")
+    if callable(caller):
+        try:
+            result = caller(prompt, force_json=False, timeout=28)
+            text = result[0] if isinstance(result, tuple) else result
+            text = str(text or "").strip()
+            if text:
+                return _qx107_score_ai_to_html(text)
+        except Exception as exc:
+            last_error = str(exc)
+    builtin = globals().get("call_gemini_text_rest")
+    if callable(builtin):
+        try:
+            text = str(builtin(prompt, timeout_seconds=32, force_json=False) or "").strip()
+            if text:
+                return _qx107_score_ai_to_html(text)
+        except Exception as exc:
+            last_error = str(exc)
+    raise RuntimeError(last_error or "No working AI provider is configured")
+
+
+def _qx107_score_ai_to_html(text):
+    clean = _re107.sub(r"^```(?:markdown|md)?\s*|\s*```$", "", str(text or "").strip(), flags=_re107.I)
+    if "{count}" not in clean:
+        clean += "\n\nমোট প্রশ্ন: **{count}টি**"
+    # Keep the AI card rich, using the same converter already proven for topic tails.
+    converter = globals().get("_qx103_md_to_html") or globals().get("md_to_html_basic")
+    if callable(converter):
+        with _cx107.suppress(Exception):
+            converted = str(converter(clean) or "").strip()
+            if converted:
+                return converted[:3900]
+    return _html107.escape(clean)[:3900]
 
 
 # The legacy direct channel publisher created its own plain score text and never
