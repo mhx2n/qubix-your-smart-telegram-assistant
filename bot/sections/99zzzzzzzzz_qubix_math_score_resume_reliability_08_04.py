@@ -210,7 +210,12 @@ telegram.Bot.send_poll = _qx107_send_poll
 # token-added bots.  This also repairs already-restored runners consistently.
 with _cx107.suppress(Exception):
     _qx107_prefixes = tuple(globals().get("QX_WORKSPACE_CALLBACK_PREFIXES") or ())
-    for _qx107_prefix in ("qx93:", "qx94:", "qx101:"):
+    for _qx107_prefix in (
+        "qx92:", "qx93:", "qx94:", "qx95:", "qx97:", "qx99:",
+        "qx101:", "qx105:", "solve:", "genquiz:", "genm:", "eq:",
+        "req:verify", "imgreact:", "tutorial:show", "master_dl_log:",
+        "adv:tog:", "adv:del:", "adv:ref:",
+    ):
         if _qx107_prefix not in _qx107_prefixes:
             _qx107_prefixes += (_qx107_prefix,)
     QX_WORKSPACE_CALLBACK_PREFIXES = _qx107_prefixes
