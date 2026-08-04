@@ -63,9 +63,6 @@ def _qx110_is_error_text(text) -> bool:
 
 def _qx110_privileged_chat(chat_id) -> bool:
     """Owner DMs and the private error room keep the raw diagnostics."""
-    with _cx110.suppress(Exception):
-        cid = int(chat_id)
-    else_cid = None  # noqa: F841  (kept explicit for readability)
     try:
         cid = int(chat_id)
     except (TypeError, ValueError):
@@ -337,10 +334,10 @@ def _gt_list(group_id, requester_id=None):  # noqa: F811
     rows = _qx110_prev_gt_list(group_id, requester_id) or []
     out = []
     for row in rows:
+        virtual = row
         with _cx110.suppress(Exception):
-            out.append(_qx110_with_id(row, _qx110_to_virtual("topic", uid, row.id)))
-            continue
-        out.append(row)
+            virtual = _qx110_with_id(row, _qx110_to_virtual("topic", uid, row.id))
+        out.append(virtual)
     return out
 
 
