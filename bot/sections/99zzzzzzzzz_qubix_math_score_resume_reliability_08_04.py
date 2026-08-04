@@ -518,6 +518,7 @@ async def cmd_post(update, context):  # noqa: F811
         f"Posted: {total_ok}\nFailed: {int(fail_count or 0)}\n"
         f"Remaining in Buffer: {buffer_count(admin_id)}",
     )
+    raise _AHS99
 
 
 globals()["cmd_post"] = cmd_post
@@ -534,8 +535,11 @@ def build_app():  # noqa: F811
     if callable(register):
         with _cx107.suppress(Exception):
             register(app, "scoreformat", qx106_cmd_scoreformat, filters.ChatType.PRIVATE, group=-5000)
-            register(app, "post", cmd_post, filters.ChatType.PRIVATE, group=-5000)
-            register(app, "p", cmd_post, filters.ChatType.PRIVATE, group=-5000)
+            post_handler = _qx99_shield(cmd_post)
+            register(app, "post", post_handler, filters.ChatType.PRIVATE, group=-5000)
+            register(app, "p", post_handler, filters.ChatType.PRIVATE, group=-5000)
+            _QX99_RESUME_TARGETS["post"] = post_handler
+            _QX99_RESUME_TARGETS["p"] = post_handler
     return app
 
 
