@@ -224,10 +224,13 @@ _qx115_previous_welcome = globals().get("_qx112_welcome_text")
 def _qx112_welcome_text(name: str, st) -> str:  # noqa: F811
     text = _qx115_previous_welcome(name, st) if callable(_qx115_previous_welcome) else ""
     text = str(text or "")
-    text = text.replace(
-        "<b>Qubix</b>-এ দুই ধরনের premium workspace আছে। ট্রায়াল চলাকালীন "
-        "আপনি <b>দুটোই</b> ব্যবহার করে দেখতে পারবেন।\n\n",
+    text = re.sub(
+        r"<b>Qubix</b>-এ দুই ধরনের premium workspace আছে।.*?ব্যবহার করে "
+        r"দেখতে পারবেন।\s*",
         "",
+        text,
+        count=1,
+        flags=re.S,
     )
     return text
 
