@@ -453,8 +453,11 @@ def _qx102_ai_line(count: int):
     return _rd102.choice(_QX102_FALLBACK)
 
 
-def _qx102_tail(link: str, count: int) -> str:
-    line, cta = _qx102_ai_line(count)
+async def _qx102_tail(link: str, count: int) -> str:
+    try:
+        line, cta = await _a102.to_thread(_qx102_ai_line, count)
+    except Exception:
+        line, cta = _rd102.choice(_QX102_FALLBACK)
     return (
         f"\n\n<b>✦ {_esc102(line)}</b>\n"
         f"➤ <a href=\"{_esc102(link)}\">{_esc102(cta)} 🔗</a>"
@@ -507,7 +510,7 @@ async def _qx102_apply_tail(bot, anchor_chat, anchor_msg, link: str, count: int)
     if not stored.strip():
         return
     base = stored.split(_QX102_MARK)[0].rstrip()
-    tail = _qx102_tail(link, count)
+    tail = await _qx102_tail(link, count)
     body = base + _QX102_MARK + tail
     if len(body) > 3800:
         base = base[: 3800 - len(tail) - 1]
