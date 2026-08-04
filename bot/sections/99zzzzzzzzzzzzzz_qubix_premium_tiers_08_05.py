@@ -629,28 +629,6 @@ with _cx112.suppress(Exception):
             if _qx112_name not in _qx112_owner_have:
                 _qx112_owner_menu.append((_qx112_name, _qx112_desc))
 
-_qx112_prev_bot_commands = globals().get("_qx94_bot_commands")
-
-
-def _qx94_bot_commands(owner: bool):  # noqa: F811
-    """Students get their own tiny "/" menu; everyone else is untouched."""
-    if not owner:
-        with _cx112.suppress(Exception):
-            if _QX112_STUDENT_MENU.get():
-                out = []
-                for name, desc in QX112_STUDENT_MENU_COMMANDS:
-                    with _cx112.suppress(Exception):
-                        out.append(BotCommand(name, str(desc)[:256]))
-                if out:
-                    return out
-    if callable(_qx112_prev_bot_commands):
-        return _qx112_prev_bot_commands(owner)
-    return []
-
-
-_QX112_STUDENT_MENU = contextvars.ContextVar("qx112_student_menu", default=False)
-globals()["_qx94_bot_commands"] = _qx94_bot_commands
-
 with _cx112.suppress(Exception):
     _qx112_owner_card = globals().get("QX94_OWNER_CARD")
     if isinstance(_qx112_owner_card, str) and "/qtier" not in _qx112_owner_card:
