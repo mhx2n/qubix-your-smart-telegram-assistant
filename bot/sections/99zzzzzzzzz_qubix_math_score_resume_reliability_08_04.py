@@ -9,6 +9,8 @@ import json as _json107
 import re as _re107
 import time as _time107
 
+import telegram  # noqa: F401  (section files run via exec; import explicitly)
+
 
 def _qx107_log(message, level="info"):
     with _cx107.suppress(Exception):
