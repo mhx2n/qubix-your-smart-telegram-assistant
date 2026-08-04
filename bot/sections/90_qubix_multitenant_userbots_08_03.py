@@ -438,6 +438,45 @@ async def _qx_child_gate(update, context) -> None:
     app.bot_data["qx_last_active"] = time.time()
 
 
+async def _qx_child_menu_router(update, context) -> None:
+    """Route the personal-bot workspace menu before any cloned legacy gate.
+
+    Tenant applications clone a large handler graph where several callbacks
+    share groups.  Dispatching the current workspace menu explicitly keeps the
+    visible buttons independent from that legacy ordering.
+    """
+    query = getattr(update, "callback_query", None)
+    data = str(getattr(query, "data", "") or "")
+    if query is None or not data.startswith("qx93:"):
+        return
+
+    tenant = int(context.application.bot_data.get("qx_tenant_uid") or 0)
+    actor = int(getattr(getattr(update, "effective_user", None), "id", 0) or 0)
+    if not tenant or actor != tenant:
+        with contextlib.suppress(Exception):
+            await query.answer("This personal bot is private.", show_alert=True)
+        raise ApplicationHandlerStop
+    if not _qx_access(tenant).get("ok"):
+        with contextlib.suppress(Exception):
+            await query.answer("Access expired.", show_alert=True)
+        raise ApplicationHandlerStop
+
+    _QX_ACTING_OWNER.set(tenant)
+    context.application.bot_data["qx_last_active"] = time.time()
+    callback = globals().get("qx93_on_callback")
+    if callable(callback):
+        try:
+            await callback(update, context)
+        except ApplicationHandlerStop:
+            raise
+        except Exception as error:
+            with contextlib.suppress(Exception):
+                logger.warning("[QUBIX-90] personal menu callback failed: %s", error)
+    with contextlib.suppress(Exception):
+        await query.answer("Menu unavailable—send /menu once.", show_alert=True)
+    raise ApplicationHandlerStop
+
+
 class QxRunner:
     """Runs one tenant's Telegram bot inside the main event loop."""
 
@@ -478,6 +517,13 @@ class QxRunner:
                     child.add_handler(handler, group=group)
                     cloned += 1
         with contextlib.suppress(Exception):
+            # Install before initialize/start_polling.  Adding this only after
+            # the child starts creates a race where freshly displayed buttons
+            # have no reliable callback route.
+            child.add_handler(
+                CallbackQueryHandler(_qx_child_menu_router, pattern=r"^qx93:"),
+                group=-10000,
+            )
             child.add_handler(
                 MessageHandler(filters.ALL, _qx_child_gate), group=-1000
             )
