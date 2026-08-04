@@ -80,16 +80,27 @@ def _sg_get(serial, requester_id):  # noqa: F811
     )
 
 
+def _qx108_topic_requester(requester_id=None):
+    """Resolve the current inbox owner without trusting patched owner checks."""
+    if requester_id is not None:
+        with _cx108.suppress(Exception):
+            return int(requester_id)
+    with _cx108.suppress(Exception):
+        return int(_QX_ACTING_OWNER.get() or 0)
+    return 0
+
+
 def _gt_list(group_id, requester_id=None):  # noqa: F811
-    """Return topics for one owned group; optional arg preserves legacy calls."""
+    """Return only the current user's topics; the real main owner may see all."""
+    requester = _qx108_topic_requester(requester_id)
     conn = db_connect()
     try:
-        if requester_id is None:
+        if requester <= 0 or _qx108_can_view_all(requester):
             rows = conn.execute("SELECT * FROM group_topics WHERE group_id=? ORDER BY id", (int(group_id),)).fetchall()
         else:
             rows = conn.execute(
                 "SELECT * FROM group_topics WHERE group_id=? AND added_by=? ORDER BY id",
-                (int(group_id), int(requester_id)),
+                (int(group_id), requester),
             ).fetchall()
         return [GroupTopicRow(
             row["id"], row["group_id"], row["topic_name"], row["thread_id"],
@@ -99,11 +110,30 @@ def _gt_list(group_id, requester_id=None):  # noqa: F811
         conn.close()
 
 
+def _gt_get(topic_id, requester_id=None):  # noqa: F811
+    """Reject direct topic-id access when the row belongs to another user."""
+    requester = _qx108_topic_requester(requester_id)
+    conn = db_connect()
+    try:
+        row = conn.execute("SELECT * FROM group_topics WHERE id=?", (int(topic_id),)).fetchone()
+    finally:
+        conn.close()
+    if not row:
+        return None
+    if requester > 0 and not _qx108_can_view_all(requester) and int(row["added_by"] or 0) != requester:
+        return None
+    return GroupTopicRow(
+        row["id"], row["group_id"], row["topic_name"], row["thread_id"],
+        row["added_by"], row["created_at"],
+    )
+
+
 globals()["channel_list_for_user"] = channel_list_for_user
 globals()["channel_get_by_id_for_user"] = channel_get_by_id_for_user
 globals()["_sg_list"] = _sg_list
 globals()["_sg_get"] = _sg_get
 globals()["_gt_list"] = _gt_list
+globals()["_gt_get"] = _gt_get
 
 with _cx108.suppress(Exception):
     logger.info("[QX108] strict tenant ownership and pre-start menu routing active")

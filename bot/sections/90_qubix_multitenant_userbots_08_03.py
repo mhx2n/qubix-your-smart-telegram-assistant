@@ -465,7 +465,13 @@ async def _qx_child_menu_router(update, context) -> None:
     context.application.bot_data["qx_last_active"] = time.time()
     callback = globals().get("qx93_on_callback")
     if callable(callback):
-        await callback(update, context)
+        try:
+            await callback(update, context)
+        except ApplicationHandlerStop:
+            raise
+        except Exception as error:
+            with contextlib.suppress(Exception):
+                logger.warning("[QUBIX-90] personal menu callback failed: %s", error)
     with contextlib.suppress(Exception):
         await query.answer("Menu unavailable—send /menu once.", show_alert=True)
     raise ApplicationHandlerStop
