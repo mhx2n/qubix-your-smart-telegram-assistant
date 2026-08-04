@@ -472,6 +472,13 @@ async def _qx_child_menu_router(update, context) -> None:
         except Exception as error:
             with contextlib.suppress(Exception):
                 logger.warning("[QUBIX-90] personal menu callback failed: %s", error)
+            with contextlib.suppress(Exception):
+                await query.answer("Menu unavailable—send /menu once.", show_alert=True)
+            raise ApplicationHandlerStop
+        # qx93_on_callback already answers the callback and edits the card.
+        # Stop here: answering the same callback again makes Telegram reject it
+        # and was the reason personal-bot buttons appeared completely inert.
+        raise ApplicationHandlerStop
     with contextlib.suppress(Exception):
         await query.answer("Menu unavailable—send /menu once.", show_alert=True)
     raise ApplicationHandlerStop
