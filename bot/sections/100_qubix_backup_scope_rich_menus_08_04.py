@@ -344,13 +344,19 @@ globals()["QX94_USER_MENU_COMMANDS"] = _qx100_user_menu[:99]
 globals()["QX94_OWNER_MENU_COMMANDS"] = _qx100_owner_menu[:99]
 
 # Self-management commands never appear inside a personal (tenant) bot.
-QX100_TENANT_HIDDEN = {"addbot", "mybot", "removebot", "myid"}
-
-_qx100_prev_bot_commands = globals().get("_qx94_bot_commands")
+QX100_TENANT_HIDDEN = set(globals().get("QX97_TENANT_HIDDEN") or ()) | {
+    "mybot", "removebot", "delbot", "myid", "wake", "addbot"
+}
+globals()["QX97_TENANT_HIDDEN"] = QX100_TENANT_HIDDEN
 
 
 def _qx94_bot_commands(owner: bool):  # noqa: F811
     source = _qx100_owner_menu if owner else _qx100_user_menu
+    tenant = False
+    with _cx100.suppress(Exception):
+        tenant = bool(globals()["_QX97_TENANT"].get())
+    if tenant:
+        source = [(n, d) for (n, d) in source if n not in QX100_TENANT_HIDDEN]
     out = []
     for name, desc in source:
         with _cx100.suppress(Exception):
@@ -358,30 +364,7 @@ def _qx94_bot_commands(owner: bool):  # noqa: F811
     return out[:100]
 
 
-def qx100_tenant_commands():
-    out = []
-    for name, desc in _qx100_user_menu:
-        if name in QX100_TENANT_HIDDEN:
-            continue
-        with _cx100.suppress(Exception):
-            out.append(BotCommand(name, str(desc)[:256]))
-    return out[:100]
-
-
 globals()["_qx94_bot_commands"] = _qx94_bot_commands
-globals()["qx100_tenant_commands"] = qx100_tenant_commands
-
-
-# Tenant bots publish the user sheet (minus self-management) on startup.
-_qx100_prev_qx_start = None
-with _cx100.suppress(Exception):
-    _qx100_prev_qx_start = globals().get("_qx94_start")
-
-
-async def _qx100_publish_tenant_menu(app_or_bot):
-    bot = getattr(app_or_bot, "bot", app_or_bot)
-    with _cx100.suppress(Exception):
-        await bot.set_my_commands(qx100_tenant_commands())
 
 
 _qx100_log(
