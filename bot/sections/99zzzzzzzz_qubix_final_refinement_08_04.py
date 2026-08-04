@@ -160,8 +160,6 @@ def _qx106_anchor_snapshot(bot, anchor_chat, anchor_msg, sent_message):
         with _cx106.suppress(Exception):
             _uid, stored, photo = row_get(anchor_chat, anchor_msg)
             if str(stored or "").strip():
-                if "**" in str(stored) or str(stored).lstrip().startswith("#"):
-                    return {}
                 return {"html": str(stored), "photo": bool(photo)}
 
     reply = getattr(sent_message, "reply_to_message", None)
@@ -191,8 +189,12 @@ def _qx104_track(bot, kwargs, message):  # noqa: F811
     anchor_chat = kwargs.get("chat_id")
     params = kwargs.get("reply_parameters")
     if params is not None:
-        anchor_msg = getattr(params, "message_id", None) or anchor_msg
-        anchor_chat = getattr(params, "chat_id", None) or anchor_chat
+        if isinstance(params, dict):
+            anchor_msg = params.get("message_id") or anchor_msg
+            anchor_chat = params.get("chat_id") or anchor_chat
+        else:
+            anchor_msg = getattr(params, "message_id", None) or anchor_msg
+            anchor_chat = getattr(params, "chat_id", None) or anchor_chat
     reply = getattr(message, "reply_to_message", None)
     if reply is not None:
         anchor_msg = anchor_msg or getattr(reply, "message_id", None)
