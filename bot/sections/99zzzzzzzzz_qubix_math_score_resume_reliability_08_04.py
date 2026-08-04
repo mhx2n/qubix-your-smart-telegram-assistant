@@ -37,7 +37,7 @@ _QX107_MATH_SIGNAL = _re107.compile(
 
 
 def _qx107_clean_math_text(value, *, option=False):
-    text = str(value or "").replace("\x00", " ").replace("\r", " ").strip()
+    text = str(value or "").replace("\x00", " ").replace("\r\n", "\n").replace("\r", "\n").strip()
     if option:
         text = _QX107_LABEL.sub("", text).strip()
     converter = globals().get("mathify_79")
@@ -47,7 +47,13 @@ def _qx107_clean_math_text(value, *, option=False):
     text = _re107.sub(r"^\s*\$+|\$+\s*$", "", text)
     text = text.replace("\\(", "").replace("\\)", "").replace("\\[", "").replace("\\]", "")
     text = _re107.sub(r"(?<!\\)\\{2,}", r"\\", text)
-    text = _re107.sub(r"\s+", " ", text).strip(" \t\n")
+    if option:
+        text = _re107.sub(r"\s+", " ", text).strip(" \t\n")
+    else:
+        # Prefix + question is intentionally two lines.  The old global
+        # whitespace collapse changed that newline to a space at send_poll.
+        lines = [_re107.sub(r"[ \t]+", " ", line).strip() for line in text.split("\n")]
+        text = "\n".join(line for line in lines if line).strip()
     return text
 
 
@@ -496,11 +502,11 @@ async def qx106_cmd_scoreformat(update, context):  # noqa: F811
             "<b>AI দিয়ে বানান:</b>\n"
             "<code>/scoreformat 1 ai</code>\n"
             "<code>/scoreformat 1 ai নীল-সাদা professional result card</code>\n\n"
-            "<b>নিজে customize করুন:</b> rich formatted message-এ reply করে\n"
-            "<code>/scoreformat 1</code>\n"
-            "অথবা সরাসরি <code>/scoreformat 1 🏆 মোট {count}টি প্রশ্ন · {channel}</code>\n\n"
+            "<b>নিজে customize করুন:</b>\n"
+            "<code>/scoreformat 1 🏆 মোট {count}টি প্রশ্ন · {channel}</code>\n\n"
             "Placeholder: <code>{count}</code> · <code>{channel}</code>\n"
-            "Default: <code>/scoreformat 1 reset</code>\n"
+            "কোনো format save না করলে default score card-ই যাবে।\n"
+            "Default ফেরাতে: <code>/scoreformat 1 reset</code>\n"
             "Channel number: <code>/listchannels</code>",
             parse_mode=_PM106.HTML,
         )
@@ -535,16 +541,12 @@ async def qx106_cmd_scoreformat(update, context):  # noqa: F811
             raise _AHS106
         with _cx107.suppress(Exception):
             await status.delete()
-    elif reply is not None:
-        rich = str(getattr(reply, "text_html_urled", "") or getattr(reply, "caption_html_urled", "") or "")
-        if not rich:
-            rich = _html107.escape(str(getattr(reply, "text", "") or getattr(reply, "caption", "") or ""))
     elif len(args) > 1 and not reset:
         rich = _html107.escape(" ".join(str(arg) for arg in args[1:]).strip())
     if not reset and not rich:
         await message.reply_text(
-            "⚠️ Format দিন: কোনো rich message-এ reply করে <code>/scoreformat "
-            f"{channel.id}</code>, অথবা command-এর পরেই text লিখুন।",
+            "⚠️ AI দিয়ে বানাতে <code>/scoreformat "
+            f"{channel.id} ai</code>, অথবা command-এর পরেই custom text লিখুন।",
             parse_mode=_PM106.HTML,
         )
         raise _AHS106
@@ -561,7 +563,7 @@ async def qx106_cmd_scoreformat(update, context):  # noqa: F811
         + "━━━━━━━━━━━━━━━━━━━━\n" + preview
         + "\n━━━━━━━━━━━━━━━━━━━━\n"
           "পছন্দ না হলে নতুন instruction দিয়ে <code>/scoreformat "
-        + str(channel.id) + " ai ...</code> দিন, অথবা rich message reply করে customize করুন।",
+        + str(channel.id) + " ai ...</code> দিন, অথবা সরাসরি custom text লিখুন।",
         parse_mode=_PM106.HTML, disable_web_page_preview=True,
     )
     raise _AHS106
