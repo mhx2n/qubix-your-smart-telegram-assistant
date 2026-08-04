@@ -204,6 +204,59 @@ async def _qx107_send_poll(self, *args, **kwargs):
 telegram.Bot.send_poll = _qx107_send_poll
 
 
+# Tenant callbacks are cloned from the finished main app, but older workspace
+# gates only allow the original generation prefixes.  Keep every current rich
+# control valid and install a final, earliest dispatcher for the menu shown in
+# token-added bots.  This also repairs already-restored runners consistently.
+with _cx107.suppress(Exception):
+    _qx107_prefixes = tuple(globals().get("QX_WORKSPACE_CALLBACK_PREFIXES") or ())
+    for _qx107_prefix in ("qx93:", "qx94:", "qx101:"):
+        if _qx107_prefix not in _qx107_prefixes:
+            _qx107_prefixes += (_qx107_prefix,)
+    QX_WORKSPACE_CALLBACK_PREFIXES = _qx107_prefixes
+    globals()["QX_WORKSPACE_CALLBACK_PREFIXES"] = QX_WORKSPACE_CALLBACK_PREFIXES
+
+with _cx107.suppress(Exception):
+    QX_WORKSPACE_COMMANDS |= {"scoreformat", "score", "scoreon", "scoreoff", "scon", "scoff"}
+
+
+async def _qx107_tenant_menu_callback(update, context):
+    query = getattr(update, "callback_query", None)
+    data = str(getattr(query, "data", "") or "")
+    if query is None or not data.startswith("qx93:"):
+        return
+    tenant = int(context.application.bot_data.get("qx_tenant_uid") or 0)
+    actor = int(getattr(getattr(update, "effective_user", None), "id", 0) or 0)
+    if not tenant or actor != tenant:
+        with _cx107.suppress(Exception):
+            await query.answer("This personal bot is private.", show_alert=True)
+        raise ApplicationHandlerStop
+    handler = globals().get("qx93_on_callback")
+    if callable(handler):
+        return await handler(update, context)
+    with _cx107.suppress(Exception):
+        await query.answer("Menu is refreshing—send /menu once.", show_alert=True)
+    raise ApplicationHandlerStop
+
+
+_qx107_previous_runner_start = QxRunner.start
+
+
+async def _qx107_runner_start(self):
+    ok_started, info = await _qx107_previous_runner_start(self)
+    if ok_started and self.app is not None and not self.app.bot_data.get("qx107_callbacks"):
+        self.app.bot_data["qx107_callbacks"] = True
+        self.app.add_handler(
+            CallbackQueryHandler(_qx107_tenant_menu_callback, pattern=r"^qx93:"),
+            group=-6000,
+        )
+        _qx107_log(f"tenant callback bridge active uid={self.uid}")
+    return ok_started, info
+
+
+QxRunner.start = _qx107_runner_start
+
+
 # ═════════════════════════════════════════════════════════════════════════════
 # 2) Stop/resume: keep exact progress, restore full buffer for `keep`, total score.
 # ═════════════════════════════════════════════════════════════════════════════
