@@ -20,6 +20,28 @@ QX115_STUDENT_HELP_CARD = (
     "Student workspace-এর generation, inbox practice, buffer ও CSV export "
     "সম্পর্কিত সহায়তা এখানে পাওয়া যাবে।"
 )
+QX112_STUDENT_COMMANDS_CARD = (
+    "📜 <b>Student Commands</b>\n"
+    f"{QX115_ROW}\n"
+    "<b>Quiz তৈরি</b>\n"
+    "ছবি, টেক্সট বা quiz/poll-এ reply করে:\n"
+    "<code>.gen 15</code> · <code>.gen medical 15</code>\n"
+    "<code>.gen engineering 15</code> · <code>.gen versity 15</code>\n\n"
+    "<b>Buffer ও Export</b>\n"
+    "<code>/buffer</code> — জমা quiz দেখুন\n"
+    "<code>/bc</code> — quiz সংখ্যা দেখুন\n"
+    "<code>.done</code> — CSV file নিন\n"
+    "<code>.clear</code> — buffer খালি করুন\n\n"
+    "<b>Inbox Practice</b>\n"
+    "📥 <b>Send to Inbox</b> — quiz গুলো inbox-এ পাঠান\n\n"
+    "<b>সহায়তা ও Access</b>\n"
+    "<code>/help আপনার প্রশ্ন</code> — ব্যবহারবিষয়ক সহায়তা\n"
+    "<code>/switchaccess</code> — Master Access-এর তথ্য\n"
+    "<code>/myid</code> — আপনার User ID\n"
+    f"{QX115_ROW}\n"
+    "🔐 Student workspace শুধু আপনার ব্যক্তিগত inbox-এ কাজ করে।"
+)
+globals()["QX112_STUDENT_COMMANDS_CARD"] = QX112_STUDENT_COMMANDS_CARD
 
 
 def _qx115_uid(update, context) -> int:
@@ -251,16 +273,28 @@ with _cx115.suppress(Exception):
     _QX114_TIER_CACHE.clear()  # prevent stale Master state after plan switching
 
 
+def _qx114_tier(uid) -> str:  # noqa: F811
+    """Always resolve the current plan; plan switches must take effect instantly."""
+    with _cx115.suppress(Exception):
+        return str(_qx112_tier(int(uid or 0)) or "")
+    return ""
+
+
+globals()["_qx114_tier"] = _qx114_tier
+
+
 _qx115_previous_student_kb = globals().get("_qx112_student_menu_kb")
 
 
 def _qx112_student_menu_kb():  # noqa: F811
     kb = _qx115_previous_student_kb() if callable(_qx115_previous_student_kb) else None
     rows = [list(row) for row in (getattr(kb, "inline_keyboard", []) or [])]
-    for row in rows:
-        for button in row:
+    for row_index, row in enumerate(rows):
+        for button_index, button in enumerate(row):
             if str(getattr(button, "callback_data", "") or "") == "qx93:ask":
-                button.text = "💬 সহায়তা"
+                rows[row_index][button_index] = InlineKeyboardButton(
+                    "💬 সহায়তা", callback_data="qx93:ask"
+                )
     return InlineKeyboardMarkup(rows) if rows else kb
 
 
