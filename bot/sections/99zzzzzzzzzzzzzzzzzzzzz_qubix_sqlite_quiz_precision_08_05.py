@@ -30,7 +30,7 @@ def _logQ(message: str, level: str = "info") -> None:
 _QX_DB_LOCK = _thQ.RLock()
 _QX_WRITE_RE = _reQ.compile(
     r"^\s*(insert|update|delete|replace|create|alter|drop|begin|commit|end|savepoint|"
-    r"release|vacuum|reindex|pragma)\b",
+    r"release|vacuum|reindex)\b",
     _reQ.IGNORECASE,
 )
 _QX_LOCK_WORDS = ("database is locked", "database table is locked", "database is busy")
@@ -64,10 +64,11 @@ def _qx_needs_lock(sql) -> bool:
 
 
 class _QxCursor:
-    """Cursor proxy: serializes writes, retries transient locks."""
+    """Cursor proxy whose write transaction is owned by its connection proxy."""
 
-    def __init__(self, cursor):
+    def __init__(self, cursor, connection):
         self._qx_cursor = cursor
+        self._qx_connection = connection
 
     def __getattr__(self, name):
         return getattr(self._qx_cursor, name)
@@ -76,16 +77,31 @@ class _QxCursor:
         return iter(self._qx_cursor)
 
     def execute(self, sql, *args, **kwargs):
-        _qx_run(lambda: self._qx_cursor.execute(sql, *args, **kwargs),
-                serialize=_qx_needs_lock(sql))
+        if _qx_needs_lock(sql):
+            self._qx_connection._qx_begin_write()
+        try:
+            _qx_run(lambda: self._qx_cursor.execute(sql, *args, **kwargs), serialize=False)
+        except Exception:
+            self._qx_connection._qx_abort_write()
+            raise
         return self
 
     def executemany(self, sql, *args, **kwargs):
-        _qx_run(lambda: self._qx_cursor.executemany(sql, *args, **kwargs), serialize=True)
+        self._qx_connection._qx_begin_write()
+        try:
+            _qx_run(lambda: self._qx_cursor.executemany(sql, *args, **kwargs), serialize=False)
+        except Exception:
+            self._qx_connection._qx_abort_write()
+            raise
         return self
 
     def executescript(self, sql, *args, **kwargs):
-        _qx_run(lambda: self._qx_cursor.executescript(sql, *args, **kwargs), serialize=True)
+        self._qx_connection._qx_begin_write()
+        try:
+            _qx_run(lambda: self._qx_cursor.executescript(sql, *args, **kwargs), serialize=False)
+        except Exception:
+            self._qx_connection._qx_abort_write()
+            raise
         return self
 
 
@@ -93,56 +109,94 @@ class _QxConnection:
     """Connection proxy so existing call sites keep working unchanged."""
 
     def __init__(self, conn):
-        self._qx_conn = conn
+        object.__setattr__(self, "_qx_conn", conn)
+        object.__setattr__(self, "_qx_write_locked", False)
 
     def __getattr__(self, name):
         return getattr(self._qx_conn, name)
 
     def __setattr__(self, name, value):
-        if name == "_qx_conn":
+        if name in ("_qx_conn", "_qx_write_locked"):
             object.__setattr__(self, name, value)
             return
         setattr(self._qx_conn, name, value)
 
+    def _qx_begin_write(self):
+        if self._qx_write_locked:
+            return
+        _QX_DB_LOCK.acquire()
+        object.__setattr__(self, "_qx_write_locked", True)
+
+    def _qx_release_write(self):
+        if not self._qx_write_locked:
+            return
+        object.__setattr__(self, "_qx_write_locked", False)
+        _QX_DB_LOCK.release()
+
+    def _qx_abort_write(self):
+        try:
+            self._qx_conn.rollback()
+        finally:
+            self._qx_release_write()
+
     def cursor(self, *args, **kwargs):
-        return _QxCursor(self._qx_conn.cursor(*args, **kwargs))
+        return _QxCursor(self._qx_conn.cursor(*args, **kwargs), self)
 
     def execute(self, sql, *args, **kwargs):
-        return _qx_run(lambda: self._qx_conn.execute(sql, *args, **kwargs),
-                       serialize=_qx_needs_lock(sql))
+        if _qx_needs_lock(sql):
+            self._qx_begin_write()
+        try:
+            return _qx_run(lambda: self._qx_conn.execute(sql, *args, **kwargs), serialize=False)
+        except Exception:
+            self._qx_abort_write()
+            raise
 
     def executemany(self, sql, *args, **kwargs):
-        return _qx_run(lambda: self._qx_conn.executemany(sql, *args, **kwargs), serialize=True)
+        self._qx_begin_write()
+        try:
+            return _qx_run(lambda: self._qx_conn.executemany(sql, *args, **kwargs), serialize=False)
+        except Exception:
+            self._qx_abort_write()
+            raise
 
     def executescript(self, sql, *args, **kwargs):
-        return _qx_run(lambda: self._qx_conn.executescript(sql, *args, **kwargs), serialize=True)
+        self._qx_begin_write()
+        try:
+            return _qx_run(lambda: self._qx_conn.executescript(sql, *args, **kwargs), serialize=False)
+        except Exception:
+            self._qx_abort_write()
+            raise
 
     def commit(self):
-        return _qx_run(self._qx_conn.commit, serialize=True)
+        try:
+            return _qx_run(self._qx_conn.commit, serialize=False)
+        finally:
+            self._qx_release_write()
 
     def rollback(self):
-        with _cxQ.suppress(Exception):
+        try:
             return self._qx_conn.rollback()
+        finally:
+            self._qx_release_write()
 
     def close(self):
-        with _cxQ.suppress(Exception):
+        try:
+            if self._qx_write_locked:
+                with _cxQ.suppress(Exception):
+                    self._qx_conn.rollback()
             return self._qx_conn.close()
+        finally:
+            self._qx_release_write()
 
     def __enter__(self):
-        _QX_DB_LOCK.acquire()
-        try:
-            self._qx_conn.__enter__()
-        except Exception:
-            _QX_DB_LOCK.release()
-            raise
+        self._qx_conn.__enter__()
         return self
 
     def __exit__(self, *exc):
         try:
             return self._qx_conn.__exit__(*exc)
         finally:
-            with _cxQ.suppress(Exception):
-                _QX_DB_LOCK.release()
+            self._qx_release_write()
 
 
 _qx_prev_db_connect = globals().get("db_connect")
@@ -161,7 +215,7 @@ if callable(_qx_prev_db_connect):
         return _QxConnection(conn)
 
     globals()["db_connect"] = db_connect
-    _logQ("sqlite connections serialized (global write lock + retry)")
+    _logQ("sqlite write transactions serialized through commit (global lock + retry)")
 
 
 # ── 2) Decimal-safe option/question cleaning ─────────────────────────────────
