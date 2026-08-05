@@ -34,7 +34,7 @@ def _qx109_is_internal(handler):
     )
 
 
-def _qx109_callback_candidates(update):
+def _qx109_callback_candidates(update, tenant):
     """Yield real matching callback handlers from the finished main app.
 
     Personal bots clone a very large handler graph.  Several historical
@@ -53,6 +53,18 @@ def _qx109_callback_candidates(update):
                 continue
             if _qx109_is_internal(handler):
                 continue
+            callback = getattr(handler, "callback", None)
+            callback_name = str(getattr(callback, "__name__", "") or "")
+            # This handler deliberately matches qx93:ask for every tier and
+            # returns without doing anything for non-Student users.  Exclude it
+            # before dispatch so the generic qx93 handler remains reachable.
+            if callback_name == "qx115_student_ask_callback":
+                tier_getter = globals().get("_qx112_tier")
+                try:
+                    if not callable(tier_getter) or str(tier_getter(int(tenant)) or "") != "student":
+                        continue
+                except Exception:
+                    continue
             # A pattern-less CallbackQueryHandler is normally an access gate,
             # telemetry observer or compatibility hook.  It may legitimately
             # return without handling the button.  Treating it as a concrete
@@ -100,17 +112,10 @@ async def _qx109_dispatch_callback(update, context):
     _QX_ACTING_OWNER.set(tenant)
     app.bot_data["qx_last_active"] = time.time()
 
-    attempted = False
-    for group, handler, check in _qx109_callback_candidates(update) or ():
-        attempted = True
+    for group, handler, check in _qx109_callback_candidates(update, tenant) or ():
         try:
             await handler.handle_update(update, app, check, context)
-            # Conditional handlers (for example Student-only help) intentionally
-            # return when the current tier does not apply.  Continue searching
-            # instead of assuming that a pattern match handled the callback.
-            # Real workspace callbacks raise ApplicationHandlerStop after their
-            # edit/send operation, which exits through the branch below.
-            continue
+            raise ApplicationHandlerStop
         except ApplicationHandlerStop:
             raise
         except Exception as error:
@@ -127,19 +132,6 @@ async def _qx109_dispatch_callback(update, context):
                     show_alert=True,
                 )
             raise ApplicationHandlerStop
-
-    if attempted:
-        # Matching conditional handlers all declined the update.  Do not run
-        # the cloned graph again and duplicate their side effects; report a
-        # deterministic refresh action instead of leaving Telegram's spinner.
-        _qx109_logger.warning(
-            "matched personal callback was not consumed uid=%s data=%r",
-            tenant,
-            str(getattr(query, "data", "") or "")[:120],
-        )
-        with _cx109.suppress(Exception):
-            await query.answer("এই control-টি refresh করতে /menu দিন।", show_alert=True)
-        raise ApplicationHandlerStop
 
     _qx109_logger.warning(
         "unhandled personal callback uid=%s data=%r",
