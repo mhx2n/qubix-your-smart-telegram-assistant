@@ -207,7 +207,10 @@ if callable(_qx_prev_db_connect):
         if isinstance(conn, _QxConnection):
             return conn
         with _cxQ.suppress(Exception):
-            conn.execute("PRAGMA busy_timeout=20000;")
+            # Keep SQLite's internal wait short.  The bounded Python retry loop
+            # owns backoff; a 20s C-level wait can exhaust Telegram worker pools
+            # and make every main/tenant command appear offline.
+            conn.execute("PRAGMA busy_timeout=200;")
         with _cxQ.suppress(Exception):
             conn.execute("PRAGMA journal_mode=WAL;")
         with _cxQ.suppress(Exception):
