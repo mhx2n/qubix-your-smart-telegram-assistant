@@ -530,11 +530,16 @@ class QxRunner:
             # the cloned legacy gates before the dispatcher existed.
             dispatcher = globals().get("_qx109_dispatch_callback")
             if callable(dispatcher):
+                dispatcher_group = min(
+                    getattr(child, "handlers", {}).keys(),
+                    default=0,
+                ) - 1
                 child.add_handler(
                     CallbackQueryHandler(dispatcher),
-                    group=-50000,
+                    group=dispatcher_group,
                 )
                 child.bot_data["qx109_dispatcher"] = True
+                child.bot_data["qx109_dispatcher_group"] = dispatcher_group
 
             # Install before initialize/start_polling.  Adding this only after
             # the child starts creates a race where freshly displayed buttons

@@ -150,12 +150,18 @@ async def _qx109_runner_start(self):
     ok_started, info = await _qx109_previous_runner_start(self)
     if ok_started and self.app is not None and not self.app.bot_data.get("qx109_dispatcher"):
         # Fallback for runners created by an older base start implementation.
-        # Current runners install this before polling at group -50000.
+        # Always choose a group earlier than every existing handler instead of
+        # relying on a magic negative number that a future gate can overtake.
+        dispatcher_group = min(
+            getattr(self.app, "handlers", {}).keys(),
+            default=0,
+        ) - 1
         self.app.add_handler(
             CallbackQueryHandler(_qx109_dispatch_callback),
-            group=-50000,
+            group=dispatcher_group,
         )
         self.app.bot_data["qx109_dispatcher"] = True
+        self.app.bot_data["qx109_dispatcher_group"] = dispatcher_group
         _qx109_logger.info("personal callback dispatcher active uid=%s", self.uid)
     return ok_started, info
 
