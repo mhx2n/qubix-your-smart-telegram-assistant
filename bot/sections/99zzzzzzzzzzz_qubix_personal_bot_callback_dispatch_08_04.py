@@ -53,6 +53,15 @@ def _qx109_callback_candidates(update):
                 continue
             if _qx109_is_internal(handler):
                 continue
+            # A pattern-less CallbackQueryHandler is normally an access gate,
+            # telemetry observer or compatibility hook.  It may legitimately
+            # return without handling the button.  Treating it as a concrete
+            # destination swallowed every callback after section 114 added its
+            # pattern-less bot-name observer.  Such handlers are already cloned
+            # on the child app and still run in PTB's normal handler graph.
+            pattern = getattr(handler, "pattern", None)
+            if pattern is None:
+                continue
             try:
                 check = handler.check_update(update)
             except Exception:
@@ -91,10 +100,17 @@ async def _qx109_dispatch_callback(update, context):
     _QX_ACTING_OWNER.set(tenant)
     app.bot_data["qx_last_active"] = time.time()
 
+    attempted = False
     for group, handler, check in _qx109_callback_candidates(update) or ():
+        attempted = True
         try:
             await handler.handle_update(update, app, check, context)
-            raise ApplicationHandlerStop
+            # Conditional handlers (for example Student-only help) intentionally
+            # return when the current tier does not apply.  Continue searching
+            # instead of assuming that a pattern match handled the callback.
+            # Real workspace callbacks raise ApplicationHandlerStop after their
+            # edit/send operation, which exits through the branch below.
+            continue
         except ApplicationHandlerStop:
             raise
         except Exception as error:
@@ -112,6 +128,19 @@ async def _qx109_dispatch_callback(update, context):
                 )
             raise ApplicationHandlerStop
 
+    if attempted:
+        # Matching conditional handlers all declined the update.  Do not run
+        # the cloned graph again and duplicate their side effects; report a
+        # deterministic refresh action instead of leaving Telegram's spinner.
+        _qx109_logger.warning(
+            "matched personal callback was not consumed uid=%s data=%r",
+            tenant,
+            str(getattr(query, "data", "") or "")[:120],
+        )
+        with _cx109.suppress(Exception):
+            await query.answer("এই control-টি refresh করতে /menu দিন।", show_alert=True)
+        raise ApplicationHandlerStop
+
     _qx109_logger.warning(
         "unhandled personal callback uid=%s data=%r",
         tenant,
@@ -128,10 +157,11 @@ _qx109_previous_runner_start = QxRunner.start
 async def _qx109_runner_start(self):
     ok_started, info = await _qx109_previous_runner_start(self)
     if ok_started and self.app is not None and not self.app.bot_data.get("qx109_dispatcher"):
-        # The most negative group runs before every historical cloned gate.
+        # Fallback for runners created by an older base start implementation.
+        # Current runners install this before polling at group -50000.
         self.app.add_handler(
             CallbackQueryHandler(_qx109_dispatch_callback),
-            group=-20000,
+            group=-50000,
         )
         self.app.bot_data["qx109_dispatcher"] = True
         _qx109_logger.info("personal callback dispatcher active uid=%s", self.uid)

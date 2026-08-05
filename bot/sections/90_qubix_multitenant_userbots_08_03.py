@@ -524,6 +524,18 @@ class QxRunner:
                     child.add_handler(handler, group=group)
                     cloned += 1
         with contextlib.suppress(Exception):
+            # Install the universal callback dispatcher before polling starts.
+            # Late QxRunner wrappers used to add it after start_polling(), which
+            # left a real race where a freshly pressed inline button could enter
+            # the cloned legacy gates before the dispatcher existed.
+            dispatcher = globals().get("_qx109_dispatch_callback")
+            if callable(dispatcher):
+                child.add_handler(
+                    CallbackQueryHandler(dispatcher),
+                    group=-50000,
+                )
+                child.bot_data["qx109_dispatcher"] = True
+
             # Install before initialize/start_polling.  Adding this only after
             # the child starts creates a race where freshly displayed buttons
             # have no reliable callback route.
